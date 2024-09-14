@@ -1,0 +1,6 @@
+
+FROM apache/hive:4.0.0-beta-1
+
+COPY ./conf/hive/*.jar /opt/hive/lib/
+
+EXPOSE 9083 10000 10002

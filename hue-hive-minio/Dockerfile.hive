@@ -1,0 +1,83 @@
+FROM ubuntu:22.04
+
+RUN apt update
+RUN apt upgrade -y
+RUN apt install -y --reinstall build-essential
+RUN apt install -y nano 
+RUN apt install -y rsync 
+RUN apt install -y net-tools
+RUN apt install -y openjdk-8-jdk 
+RUN apt install -y python3-dev 
+RUN apt install -y libxml2-dev 
+RUN apt install -y libkrb5-dev 
+RUN apt install -y libffi-dev 
+RUN apt install -y libssl-dev 
+RUN apt install -y libldap2-dev 
+RUN apt install -y libxslt1-dev 
+RUN apt install -y libgmp3-dev 
+RUN apt install -y libsasl2-dev 
+RUN apt install -y libsqlite3-dev  
+RUN apt install -y libmysqlclient-dev
+RUN apt install -y maven
+RUN apt install -y ssh
+RUN apt install -y sudo sshpass
+
+USER root
+RUN sudo adduser hadoop
+
+USER hadoop
+RUN ssh-keygen -t rsa -N '' -f /home/hadoop/.ssh/id_rsa
+RUN cat /home/hadoop/.ssh/id_rsa.pub >> /home/hadoop/.ssh/authorized_keys   
+RUN chmod 640 /home/hadoop/.ssh/authorized_keys
+# RUN ssh -o StrictHostKeyChecking=no localhost
+
+USER root
+RUN mkdir -p /home/hive/hive
+RUN mkdir -p /home/hadoop/hadoop
+
+RUN chmod -R 777 /home/hive/hive
+RUN chmod -R 777 /home/hadoop/hadoop
+COPY ./apache-hive-4.0.0-beta-1-bin /home/hive/hive
+COPY ./hadoop-3.3.6 /home/hadoop/hadoop
+
+RUN chmod -R 777 /home/hive/hive
+RUN chmod -R 777 /home/hadoop/hadoop
+
+ARG VAR_HADOOP_HOME=/home/hadoop/hadoop
+ARG VAR_JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+
+RUN export JAVA_HOME=${VAR_JAVA_HOME}
+RUN export HADOOP_HOME=${VAR_HADOOP_HOME}
+RUN export HADOOP_INSTALL=${VAR_HADOOP_HOME}
+RUN export HADOOP_MAPRED_HOME=${VAR_HADOOP_HOME}
+RUN export HADOOP_COMMON_HOME=${VAR_HADOOP_HOME}
+RUN export HADOOP_HDFS_HOME=${VAR_HADOOP_HOME}
+RUN export HADOOP_YARN_HOME=${VAR_HADOOP_HOME}
+RUN export HADOOP_COMMON_LIB_NATIVE_DIR=${VAR_HADOOP_HOME}/lib/native
+RUN export PATH=$PATH:${VAR_HADOOP_HOME}/sbin:${VAR_HADOOP_HOME}/bin
+RUN export HADOOP_OPTS="-Djava.library.path=${VAR_HADOOP_HOME}/lib/native"
+RUN export HDFS_NAMENODE_USER="root"
+RUN export HDFS_DATANODE_USER="root"
+RUN export HDFS_SECONDARYNAMENODE_USER="root"
+RUN export YARN_RESOURCEMANAGER_USER="root"
+RUN export YARN_NODEMANAGER_USER="root"
+
+COPY ./apache-hive-4.0.0-beta-1-bin/.bashrc /root/.bashrc
+RUN . /root/.bashrc
+USER hadoop
+RUN mkdir -p /home/hadoop/hadoopdata/hdfs/{namenode,datanode}
+RUN /home/hadoop/hadoop/bin/hdfs namenode -format
+# RUN /home/hadoop/hadoop/sbin/start-all.sh
+
+# WORKDIR /home/hive
+
+# RUN mvn clean package -Pdist -Drat.numUnapprovedLicenses=500 -DskipTests -Dmaven.javadoc.skip=true
+
+RUN echo 'root:root' | chpasswd
+RUN echo 'hadoop:root' | chpasswd
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+RUN service ssh start
+
+EXPOSE 22 9083 10000 10002
+
+CMD ["/usr/sbin/sshd","-D"]

@@ -1,0 +1,96 @@
+x-common: &common
+  environment: &common-env
+    AWS_REGION: "us-east-1"
+    MINIO_REGION: "us-east-1"
+    AWS_DEFAULT_REGION: "us-east-1"
+    AWS_ACCESS_KEY_ID: "minioadmin"
+    AWS_SECRET_ACCESS_KEY: "xqORsmOYEKkUltCStWaYcOEK1M24FDRd"
+    AWS_S3_ENDPOINT: "http://minio-hive:9000"
+
+networks:
+  hue-hive:
+    driver: bridge
+
+services:
+  hue-db:
+    image: postgres:14
+    hostname: hue-db
+    container_name: hue-db
+    environment:
+      POSTGRES_DB: hue
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+    ports:
+      - 5465:5432
+    # volumes:
+    #   - ./hue-db/data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      hue-hive: null
+  hue:
+    build:
+      context: .
+      dockerfile: Dockerfile.hue.hub
+    hostname: hue
+    container_name: hue
+    # command: /hue/build/env/bin/hue runserver 0.0.0.0:8888
+    environment:
+      <<: *common-env
+    depends_on:
+      - hue-db
+    ports:
+      - 8888:8888
+    volumes:
+      - ./conf/hue/z-hue.ini:/usr/share/hue/desktop/conf/z-hue.ini
+    restart: unless-stopped
+    networks:
+      hue-hive: null
+  hive:
+    build:
+      context: .
+      dockerfile: Dockerfile.hive.hub
+    hostname: hive
+    container_name: hive
+    environment:
+      <<: *common-env
+      SERVICE_NAME: "hiveserver2"
+    ports:
+      - 2222:22
+      - 9083:9083
+      - 10000:10000
+      - 10002:10002
+    volumes:
+      - ./conf/hive/hive-site.xml:/opt/hive/conf/hive-site.xml
+    restart: unless-stopped
+    networks:
+      hue-hive: null
+  minio-hive:
+    image: minio/minio
+    hostname: minio-hive
+    container_name: minio-hive
+    command: server /data --console-address ":9001"
+    ports:
+      - 9003:9000
+      - 9004:9001
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: xqORsmOYEKkUltCStWaYcOEK1M24FDRd
+    # volumes:
+    #   - ./minio-hive/data:/data
+    restart: unless-stopped
+    networks:
+      hue-hive: null
+  # minio-mc:
+  #   image: minio/mc
+  #   hostname: minio-mc
+  #   container_name: minio-mc
+  #   depends_on:
+  #     - minio
+  #   entrypoint: >
+  #     /bin/sh -c "
+  #     /usr/bin/mc config host add myminio http://minio:9000 minioadmin xqORsmOYEKkUltCStWaYcOEK1M24FDRd;
+  #     /usr/bin/mc rm -r --force myminio/data;
+  #     /usr/bin/mc mb myminio/data;
+  #     /usr/bin/mc policy download myminio/data;
+  #     exit 0;
+  #     "
